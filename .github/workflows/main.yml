@@ -28,6 +28,8 @@ jobs:
     env:
       AWS_REGION: ${{ github.event.inputs.aws_region }}
       ACTION: ${{ github.event.inputs.action }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
     steps:
       - name: Checkout repo
@@ -42,9 +44,9 @@ jobs:
       - name: Terraform Apply/Destroy
         run: |
           if [ "${ACTION}" = "apply" ]; then
-            terraform apply -auto-approve -var="aws_region=${AWS_REGION}"
+            terraform apply -auto-approve -var="region=${AWS_REGION}"
           else
-            terraform destroy -auto-approve -var="aws_region=${AWS_REGION}"
+            terraform destroy -auto-approve -var="region=${AWS_REGION}"
           fi
 
       - name: Get EC2 Public IP
@@ -55,16 +57,30 @@ jobs:
           echo "ec2_ip=$EC2_IP" >> $GITHUB_ENV
           echo "EC2 Public IP: $EC2_IP"
 
-      - name: Install Apache if not installed
+      - name: Configure SSH key
+        if: ${{ github.event.inputs.action == 'apply' }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+      - name: Install Apache and Deploy HTML
         if: ${{ github.event.inputs.action == 'apply' }}
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@${{ env.ec2_ip }} << 'EOF'
           if ! dpkg -l | grep apache2; then
             sudo apt-get update -y
-            sudo apt-get install -y apache2
+            sudo apt-get install -y apache2 wget unzip
             sudo systemctl enable apache2
             sudo systemctl start apache2
           else
-            echo "Apache already installed"
+            echo "Apache is already installed"
           fi
+
+          cd /var/www/html
+          rm -rf *
+          wget https://templatemo.com/tm-zip-files-2020/templatemo_596_electric_xtra.zip -O site.zip
+          unzip site.zip
+          mv templatemo_596_electric_xtra/* .
+          rm -rf templatemo_596_electric_xtra site.zip
           EOF
