@@ -67,37 +67,36 @@ jobs:
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
-      - name: Wait for SSH to be ready
+            - name: Wait for SSH to be ready
         if: ${{ github.event.inputs.action == 'apply' }}
         run: |
           echo "Waiting for EC2 SSH to be ready..."
           for i in {1..30}; do
-            if nc -zv ${{ env.ec2_ip }} 22 2>/dev/null; then
+            if ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@${{ env.ec2_ip }} "echo ok" >/dev/null 2>&1; then
               echo "✅ SSH is ready!"
-              break
+              exit 0
             else
               echo "Attempt $i: SSH not ready yet, retrying in 10s..."
               sleep 10
             fi
           done
+          echo "❌ SSH did not become ready in time."
+          exit 1
 
       - name: Install Apache and Deploy HTML
         if: ${{ github.event.inputs.action == 'apply' }}
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@${{ env.ec2_ip }} << 'EOF'
-          if ! dpkg -l | grep apache2; then
+            set -e
             sudo apt-get update -y
             sudo apt-get install -y apache2 wget unzip
             sudo systemctl enable apache2
             sudo systemctl start apache2
-          else
-            echo "Apache is already installed"
-          fi
 
-          cd /var/www/html
-          sudo rm -rf *
-          wget https://templatemo.com/tm-zip-files-2020/templatemo_596_electric_xtra.zip -O site.zip
-          unzip site.zip
-          mv templatemo_596_electric_xtra/* .
-          rm -rf templatemo_596_electric_xtra site.zip
+            cd /var/www/html
+            sudo rm -rf *
+            wget https://templatemo.com/tm-zip-files-2020/templatemo_596_electric_xtra.zip -O site.zip
+            unzip site.zip
+            sudo mv templatemo_596_electric_xtra/* .
+            rm -rf templatemo_596_electric_xtra site.zip
           EOF
