@@ -53,9 +53,9 @@ jobs:
         if: ${{ github.event.inputs.action == 'apply' }}
         run: |
           EC2_IP=$(aws ec2 describe-instances \
-            --filters "Name=tag:Name,Values=my-ec2" "Name=instance-state-name,Values=running" \
+            --filters "Name=instance-state-name,Values=running" \
             --region ${AWS_REGION} \
-            --query "Reservations[0].Instances[0].PublicIpAddress" \
+            --query "Reservations[-1].Instances[-1].PublicIpAddress" \
             --output text)
           echo "ec2_ip=$EC2_IP" >> $GITHUB_ENV
           echo "EC2 Public IP: $EC2_IP"
@@ -81,7 +81,7 @@ jobs:
           fi
 
           cd /var/www/html
-          rm -rf *
+          sudo rm -rf *
           wget https://templatemo.com/tm-zip-files-2020/templatemo_596_electric_xtra.zip -O site.zip
           unzip site.zip
           mv templatemo_596_electric_xtra/* .
