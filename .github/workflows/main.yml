@@ -67,7 +67,7 @@ jobs:
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
-            - name: Wait for SSH to be ready
+      - name: Wait for SSH to be ready
         if: ${{ github.event.inputs.action == 'apply' }}
         run: |
           echo "Waiting for EC2 SSH to be ready..."
