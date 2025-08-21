@@ -53,9 +53,9 @@ jobs:
         if: ${{ github.event.inputs.action == 'apply' }}
         run: |
           EC2_IP=$(aws ec2 describe-instances \
-            --filters "Name=instance-state-name,Values=running" \
+            --filters "Name=tag:Name,Values=my-ec2" "Name=instance-state-name,Values=running" \
             --region ${AWS_REGION} \
-            --query "Reservations[-1].Instances[-1].PublicIpAddress" \
+            --query "Reservations[0].Instances[0].PublicIpAddress" \
             --output text)
           echo "ec2_ip=$EC2_IP" >> $GITHUB_ENV
           echo "EC2 Public IP: $EC2_IP"
@@ -66,6 +66,20 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
+
+      - name: Wait for SSH to be ready
+        if: ${{ github.event.inputs.action == 'apply' }}
+        run: |
+          echo "Waiting for EC2 SSH to be ready..."
+          for i in {1..30}; do
+            if nc -zv ${{ env.ec2_ip }} 22 2>/dev/null; then
+              echo "✅ SSH is ready!"
+              break
+            else
+              echo "Attempt $i: SSH not ready yet, retrying in 10s..."
+              sleep 10
+            fi
+          done
 
       - name: Install Apache and Deploy HTML
         if: ${{ github.event.inputs.action == 'apply' }}
