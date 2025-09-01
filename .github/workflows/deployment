@@ -1,0 +1,73 @@
+name: HTML Deployment to EC2
+
+on:
+  workflow_dispatch:
+    inputs:
+      aws_region:
+        description: "AWS region"
+        required: true
+        default: "eu-west-2"
+        type: choice
+        options:
+          - eu-west-2
+          - us-east-1
+          - ap-south-1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: ${{ github.event.inputs.aws_region }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+    steps:
+      - name: Download EC2 IP
+        uses: actions/download-artifact@v4
+        with:
+          name: ec2-ip
+
+      - name: Read IP from file
+        run: |
+          EC2_IP=$(cat ec2_ip.txt)
+          echo "ec2_ip=$EC2_IP" >> $GITHUB_ENV
+          echo "Using EC2 IP: $EC2_IP"
+
+      - name: Configure SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+      - name: Wait for SSH to be ready
+        run: |
+          echo "Waiting for EC2 SSH to be ready..."
+          for i in {1..30}; do
+            if ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@${{ env.ec2_ip }} "echo ok" >/dev/null 2>&1; then
+              echo "✅ SSH is ready!"
+              exit 0
+            else
+              echo "Attempt $i: SSH not ready yet, retrying in 10s..."
+              sleep 10
+            fi
+          done
+          echo "❌ SSH did not become ready in time."
+          exit 1
+
+      - name: Install Apache and Deploy HTML
+        run: |
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@${{ env.ec2_ip }} << 'EOF'
+            set -e
+            sudo apt-get update -y
+            sudo apt-get install -y apache2 wget unzip
+            sudo systemctl enable apache2
+            sudo systemctl start apache2
+
+            cd /var/www/html
+            sudo rm -rf *
+            wget https://templatemo.com/tm-zip-files-2020/templatemo_596_electric_xtra.zip -O site.zip
+            unzip site.zip
+            sudo mv templatemo_596_electric_xtra/* .
+            rm -rf templatemo_596_electric_xtra site.zip
+          EOF
