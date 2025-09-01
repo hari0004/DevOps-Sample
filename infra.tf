@@ -92,7 +92,18 @@ resource "aws_instance" "my_ec2" {
   vpc_security_group_ids = [aws_security_group.my_sg.id]
   key_name               = var.key_name
 
+ # Add user_data to inject the public key
+  user_data = <<-EOF
+              #!/bin/bash
+              mkdir -p /home/ubuntu/.ssh
+              echo "${var.public_key}" > /home/ubuntu/.ssh/authorized_keys
+              chown -R ubuntu:ubuntu /home/ubuntu/.ssh
+              chmod 700 /home/ubuntu/.ssh
+              chmod 600 /home/ubuntu/.ssh/authorized_keys
+              EOF
+
   tags = {
     Name = "my-web-ec2"
   }
 }
+ 
