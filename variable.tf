@@ -22,3 +22,8 @@ variable "aws_region" {
   default     = "eu-west-2" # you can change or remove default
 }
 
+variable "public_key" {
+  description = "SSH public key to be added to EC2 authorized_keys"
+  type        = string
+}
+
